@@ -1,2 +1,2 @@
 aiogram>=3.4.0
-firebase-admin>=6.4.0Premium Hook!'));
+firebase-admin>=6.4.0
