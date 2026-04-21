@@ -179,8 +179,10 @@ async def group_dashboard(callback: types.CallbackQuery):
     except Exception:
         member_count = "Unknown (Bot kicked?)"
 
+    # ADDED: Display the Group ID here so you can copy it for the /group command
     text = (
-        f"📊 **Statistics for {title}**\n\n"
+        f"📊 **Statistics for {title}**\n"
+        f"🆔 **Group ID:** `{chat_id}`\n\n"
         f"👥 **Total Members:** {member_count}\n"
         f"⏳ **Pending Requests:** {pending_count}\n"
         f"🚪 **Total Users Left:** {users_left}\n"
@@ -291,6 +293,51 @@ async def sync_groups(message: types.Message):
             print(f"Could not sync {chat_id}: {e}")
             
     await msg.edit_text(f"✅ Successfully fixed the names of {count} groups!")
+
+# --- 10. Broadcast Commands ---
+@dp.message(Command("all"))
+async def broadcast_all(message: types.Message):
+    if message.from_user.id != ADMIN_ID: return
+    
+    text_to_send = message.text.replace("/all", "").strip()
+    if not text_to_send:
+        return await message.answer("Please provide a message. Format:\n`/all Hello everyone!`", parse_mode="Markdown")
+        
+    msg = await message.answer("⏳ Broadcasting message to all groups...")
+    docs = db.collection('groups').stream()
+    
+    success = 0
+    failed = 0
+    
+    for doc in docs:
+        chat_id = doc.id
+        try:
+            await bot.send_message(chat_id, text_to_send)
+            success += 1
+            await asyncio.sleep(0.1) # Anti-spam delay so Telegram doesn't block the bot
+        except Exception as e:
+            print(f"Failed to send to {chat_id}: {e}")
+            failed += 1
+            
+    await msg.edit_text(f"✅ **Broadcast Complete!**\n\n🟢 Sent to: {success} groups\n🔴 Failed: {failed} groups", parse_mode="Markdown")
+
+@dp.message(Command("group"))
+async def broadcast_group(message: types.Message):
+    if message.from_user.id != ADMIN_ID: return
+    
+    # Expects format: /group -1001234567890 Hello group!
+    parts = message.text.split(" ", 2)
+    if len(parts) < 3:
+        return await message.answer("Please use the format:\n`/group [group_id] Your message here`\n\n*Tip: Go to /admin -> Manage Groups to find your Group ID.*", parse_mode="Markdown")
+        
+    chat_id = parts[1]
+    text_to_send = parts[2]
+    
+    try:
+        await bot.send_message(chat_id, text_to_send)
+        await message.answer(f"✅ Message sent successfully to group `{chat_id}`", parse_mode="Markdown")
+    except Exception as e:
+        await message.answer(f"❌ Failed to send message to `{chat_id}`. Make sure the bot is an admin there.\nError: {e}", parse_mode="Markdown")
 
 # --- Main Entry Point ---
 async def main():
