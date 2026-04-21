@@ -114,11 +114,12 @@ async def list_groups(callback: types.CallbackQuery):
     
     # Get all groups
     docs = list(db.collection('groups').stream())
-    total_pages = math.ceil(len(docs) / items_per_page)
     
     if len(docs) == 0:
         return await callback.message.edit_text("No groups found. Add the bot to a group as an admin first!")
 
+    total_pages = math.ceil(len(docs) / items_per_page)
+    
     # Slice for current page
     current_docs = docs[page * items_per_page : (page + 1) * items_per_page]
     
@@ -267,6 +268,29 @@ async def show_help(callback: types.CallbackQuery):
         await callback.message.answer("To set the DM text, send a message like this:\n`/setdm Welcome to our VIP Group! Read the rules.`", parse_mode="Markdown")
     else:
         await callback.message.answer("To set the button, send a message like this:\n`/setbutton Join Channel | https://t.me/yourchannel`", parse_mode="Markdown")
+
+# --- 9. Fix Unknown Group Names ---
+@dp.message(Command("sync"))
+async def sync_groups(message: types.Message):
+    if message.from_user.id != ADMIN_ID: return
+    
+    msg = await message.answer("🔄 Syncing group names with Telegram... please wait.")
+    docs = db.collection('groups').stream()
+    count = 0
+    
+    for doc in docs:
+        chat_id = doc.id
+        try:
+            # Fetch live chat info from Telegram
+            chat = await bot.get_chat(chat_id)
+            # Update Firebase with the real title
+            db.collection('groups').document(chat_id).update({"title": chat.title})
+            count += 1
+            await asyncio.sleep(0.5) # Pause briefly to prevent Telegram rate limits
+        except Exception as e:
+            print(f"Could not sync {chat_id}: {e}")
+            
+    await msg.edit_text(f"✅ Successfully fixed the names of {count} groups!")
 
 # --- Main Entry Point ---
 async def main():
